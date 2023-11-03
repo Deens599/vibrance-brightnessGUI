@@ -44,9 +44,12 @@ namespace vibrance.GUI
                     ? new AmdAdapter64()
                     : (IAmdAdapter)new AmdAdapter32(), x, y);
                 vibranceGui = new VibranceGUI(getProxy, 
-                    100, 
+                    100,
+                    40,
                     0,
                     300,
+                    0,
+                    100,
                     100,
                     x => x.ToString());
             }
@@ -64,7 +67,10 @@ namespace vibrance.GUI
                     (x, y) => new NvidiaDynamicVibranceProxy(x, y),
                     NvidiaDynamicVibranceProxy.NvapiDefaultLevel,
                     NvidiaDynamicVibranceProxy.NvapiDefaultLevel,
+                    NvidiaDynamicVibranceProxy.NvapiDefaultLevel,
                     NvidiaDynamicVibranceProxy.NvapiMaxLevel,
+                    0,
+                    100,
                     NvidiaDynamicVibranceProxy.NvapiDefaultLevel,
                     x => NvidiaVibranceValueWrapper.Find(x).Percentage);
             }

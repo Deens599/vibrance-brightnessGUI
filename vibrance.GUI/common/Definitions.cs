@@ -12,6 +12,8 @@ namespace vibrance.GUI.common
         public int defaultHandle;
         public int userVibranceSettingDefault;
         public int userVibranceSettingActive;
+        public int userSDRSettingDefault;
+        public int userSDRSettingActive;
         public String szGpuName;
         public bool shouldRun;
         public int sleepInterval;

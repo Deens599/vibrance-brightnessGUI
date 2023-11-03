@@ -9,6 +9,8 @@ namespace vibrance.GUI.common
         void SetShouldRun(bool shouldRun);
         void SetVibranceWindowsLevel(int vibranceWindowsLevel);
         void SetVibranceIngameLevel(int vibranceIngameLevel);
+        void SetSDRWindowsLevel(int sdrWindowsLevel);
+        void SetSDRIngameLevel(int sdrIngameLevel);
         bool UnloadLibraryEx();
         void HandleDvcExit();
         void SetAffectPrimaryMonitorOnly(bool affectPrimaryMonitorOnly);

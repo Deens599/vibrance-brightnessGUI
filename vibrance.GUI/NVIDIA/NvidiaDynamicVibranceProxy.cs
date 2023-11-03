@@ -113,6 +113,15 @@ namespace vibrance.GUI.NVIDIA
             CallingConvention = CallingConvention.StdCall,
             CharSet = CharSet.Ansi)]
         static extern int getAssociatedNvidiaDisplayHandle(string deviceName, [In] int length);
+
+        [DllImport("user32.dll")]
+        static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
+        [DllImport("kernel32", CharSet = CharSet.Unicode)]
+        static extern IntPtr LoadLibrary(string lpFileName);
+        [DllImport("kernel32", CharSet = CharSet.Ansi, ExactSpelling = true, SetLastError = true)]
+        static extern IntPtr GetProcAddress(IntPtr hModule, int address);
+
+        private delegate void DwmpSDRToHDRBoostPtr(IntPtr monitor, double brightness);
         #endregion
 
 
@@ -163,6 +172,11 @@ namespace vibrance.GUI.NVIDIA
                 }                
             }
         }
+        private static double Normalize(double value, double min, double max)
+        {
+            // Assuming the values are from 0 to 100
+            return (((value - 0) / (100 - 0)) * (max - min)) + min;
+        }
 
         private void InitializeProxy()
         {
@@ -195,11 +209,15 @@ namespace vibrance.GUI.NVIDIA
             _vibranceInfo.defaultHandle = enumerateNvidiaDisplayHandle(0);
 
             NvDisplayDvcInfo info = new NvDisplayDvcInfo();
+            var primaryMonitor = MonitorFromWindow(IntPtr.Zero, 1);
+            var hmodule_dwmapi = LoadLibrary("dwmapi.dll");
+            DwmpSDRToHDRBoostPtr changeBrightness = Marshal.GetDelegateForFunctionPointer<DwmpSDRToHDRBoostPtr>(GetProcAddress(hmodule_dwmapi, 171));
             if (getDVCInfo(ref info, _vibranceInfo.defaultHandle))
             {
                 if (info.currentLevel != _vibranceInfo.userVibranceSettingDefault)
                 {
                     setDVCLevel(_vibranceInfo.defaultHandle, _vibranceInfo.userVibranceSettingDefault);
+                    changeBrightness(primaryMonitor, Normalize(_vibranceInfo.userSDRSettingDefault, 1.0, 6.0));
                 }
             }
 
@@ -211,9 +229,13 @@ namespace vibrance.GUI.NVIDIA
             if (_applicationSettings.Count > 0)
             {
                 ApplicationSetting applicationSetting = _applicationSettings.FirstOrDefault(x => string.Equals(x.Name, e.ProcessName, StringComparison.OrdinalIgnoreCase));
+                var primaryMonitor = MonitorFromWindow(IntPtr.Zero, 1);
+                var hmodule_dwmapi = LoadLibrary("dwmapi.dll");
+                DwmpSDRToHDRBoostPtr changeBrightness = Marshal.GetDelegateForFunctionPointer<DwmpSDRToHDRBoostPtr>(GetProcAddress(hmodule_dwmapi, 171));
                 if (applicationSetting != null)
                 {                  
                     int displayHandle = GetApplicationDisplayHandle(e.Handle);
+                    changeBrightness(primaryMonitor, Normalize(applicationSetting.IngameSDR, 1.0, 6.0));
                     //test if changing the vibrance value is needed
                     if (displayHandle != -1 && !equalsDVCLevel(displayHandle, applicationSetting.IngameLevel))
                     {
@@ -230,6 +252,7 @@ namespace vibrance.GUI.NVIDIA
                         _gameScreen = screen;
                         _vibranceInfo.defaultHandle = displayHandle;
                         setDVCLevel(_vibranceInfo.defaultHandle, applicationSetting.IngameLevel);
+                        changeBrightness(primaryMonitor, Normalize(applicationSetting.IngameSDR, 1.0, 6.0));
                     }
                 }
                 else
@@ -250,6 +273,7 @@ namespace vibrance.GUI.NVIDIA
                         PerformResolutionChange(currentScreen, _windowsResolutionSettings[currentScreen.DeviceName].Item1);
                     }
 
+                    changeBrightness(primaryMonitor, Normalize(_vibranceInfo.userSDRSettingDefault, 1.0, 6.0));
                     //test if changing the vibrance value is needed
                     if (_vibranceInfo.affectPrimaryMonitorOnly && !equalsDVCLevel(_vibranceInfo.defaultHandle, _vibranceInfo.userVibranceSettingDefault))
                     {
@@ -259,10 +283,11 @@ namespace vibrance.GUI.NVIDIA
                         }
 
                         setDVCLevel(_vibranceInfo.defaultHandle, _vibranceInfo.userVibranceSettingDefault);
+                        changeBrightness(primaryMonitor, Normalize(_vibranceInfo.userSDRSettingDefault, 1.0, 6.0));
                     }
                     else if (!_vibranceInfo.affectPrimaryMonitorOnly && !_vibranceInfo.displayHandles.TrueForAll(handle => equalsDVCLevel(handle, _vibranceInfo.userVibranceSettingDefault)))
                     {
-                        _vibranceInfo.displayHandles.ForEach(handle => setDVCLevel(handle, _vibranceInfo.userVibranceSettingDefault));
+                        _vibranceInfo.displayHandles.ForEach(handle => { setDVCLevel(handle, _vibranceInfo.userVibranceSettingDefault); changeBrightness(primaryMonitor, Normalize(_vibranceInfo.userSDRSettingDefault, 1.0, 6.0)); });
                     }
                 }
             }
@@ -337,6 +362,15 @@ namespace vibrance.GUI.NVIDIA
         {
             _vibranceInfo.userVibranceSettingActive = vibranceIngameLevel;
         }
+        public void SetSDRWindowsLevel(int sdrWindowsLevel)
+        {
+            _vibranceInfo.userSDRSettingDefault = sdrWindowsLevel;
+        }
+
+        public void SetSDRIngameLevel(int sdrIngameLevel)
+        {
+            _vibranceInfo.userSDRSettingActive = sdrIngameLevel;
+        }
 
         public void SetSleepInterval(int interval)
         {
@@ -367,12 +401,16 @@ namespace vibrance.GUI.NVIDIA
 
         public void HandleDvcExit()
         {
+            var primaryMonitor = MonitorFromWindow(IntPtr.Zero, 1);
+            var hmodule_dwmapi = LoadLibrary("dwmapi.dll");
+            DwmpSDRToHDRBoostPtr changeBrightness = Marshal.GetDelegateForFunctionPointer<DwmpSDRToHDRBoostPtr>(GetProcAddress(hmodule_dwmapi, 171));
             if (_vibranceInfo.affectPrimaryMonitorOnly)
             {
                 setDVCLevel(_vibranceInfo.defaultHandle, _vibranceInfo.userVibranceSettingDefault);
+                changeBrightness(primaryMonitor, Normalize(_vibranceInfo.userSDRSettingDefault, 1.0, 6.0));
             }
             else if (!_vibranceInfo.displayHandles.TrueForAll(handle => equalsDVCLevel(handle, _vibranceInfo.userVibranceSettingDefault)))
-                _vibranceInfo.displayHandles.ForEach(handle => setDVCLevel(handle, _vibranceInfo.userVibranceSettingDefault));
+                _vibranceInfo.displayHandles.ForEach(handle => { setDVCLevel(handle, _vibranceInfo.userVibranceSettingDefault); changeBrightness(primaryMonitor, Normalize(_vibranceInfo.userSDRSettingDefault, 1.0, 6.0)); });
         }
     }
 }

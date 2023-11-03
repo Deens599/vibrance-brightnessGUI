@@ -29,6 +29,7 @@ namespace vibrance.GUI.common
 
         const string SzSectionName = "Settings";
         const string SzKeyNameInactive = "inactiveValue";
+        const string SzKeyNameSDR = "sdrValue";
         const string SzKeyNameRefreshRate = "refreshRate";
         const string SzKeyNameAffectPrimaryMonitorOnly = "affectPrimaryMonitorOnly";
         const string SzKeyNameNeverSwitchResolution = "neverSwitchResolution";
@@ -37,7 +38,7 @@ namespace vibrance.GUI.common
         private string _fileNameApplicationSettings = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData).ToString() + "\\vibranceGUI\\applicationData.xml";
 
 
-        public bool SetVibranceSettings(string windowsLevel, string affectPrimaryMonitorOnly, string neverSwitchResolution, List<ApplicationSetting> applicationSettings)
+        public bool SetVibranceSettings(string windowsLevel, string windowsSDR, string affectPrimaryMonitorOnly, string neverSwitchResolution, List<ApplicationSetting> applicationSettings)
         {
             if (!PrepareFile())
             {
@@ -45,6 +46,7 @@ namespace vibrance.GUI.common
             }
 
             WritePrivateProfileString(SzSectionName, SzKeyNameInactive, windowsLevel, _fileName);
+            WritePrivateProfileString(SzSectionName, SzKeyNameSDR, windowsSDR, _fileName);
             WritePrivateProfileString(SzSectionName, SzKeyNameAffectPrimaryMonitorOnly, affectPrimaryMonitorOnly, _fileName);
             WritePrivateProfileString(SzSectionName, SzKeyNameNeverSwitchResolution, neverSwitchResolution, _fileName);
 
@@ -93,9 +95,10 @@ namespace vibrance.GUI.common
             return true;
         }
 
-        public void ReadVibranceSettings(GraphicsAdapter graphicsAdapter, out int vibranceWindowsLevel, out bool affectPrimaryMonitorOnly, out bool neverSwitchResolution, out List<ApplicationSetting> applicationSettings)
+        public void ReadVibranceSettings(GraphicsAdapter graphicsAdapter, out int vibranceWindowsLevel, out int sdrWindowsLevel, out bool affectPrimaryMonitorOnly, out bool neverSwitchResolution, out List<ApplicationSetting> applicationSettings)
         {
-            int defaultLevel = 0; 
+            int defaultLevel = 0;
+            int defaultSDR = 40;
             int maxLevel = 0;
             if (graphicsAdapter == GraphicsAdapter.Nvidia)
             {
@@ -112,6 +115,7 @@ namespace vibrance.GUI.common
             if (!IsFileExisting(_fileName) || !IsFileExisting(_fileNameApplicationSettings))
             {
                 vibranceWindowsLevel = defaultLevel;
+                sdrWindowsLevel = defaultSDR;
                 affectPrimaryMonitorOnly = false;
                 applicationSettings = new List<ApplicationSetting>();
                 neverSwitchResolution = false;
@@ -126,6 +130,14 @@ namespace vibrance.GUI.common
                 szDefault,
                 szValueInactive,
                 Convert.ToUInt32(szValueInactive.Capacity),
+                _fileName);
+
+            StringBuilder szValueSDR = new StringBuilder(1024);
+            GetPrivateProfileString(SzSectionName,
+                SzKeyNameSDR,
+                szDefault,
+                szValueSDR,
+                Convert.ToUInt32(szValueSDR.Capacity),
                 _fileName);
 
             StringBuilder szValueRefreshRate = new StringBuilder(1024);
@@ -155,12 +167,14 @@ namespace vibrance.GUI.common
             try
             {
                 vibranceWindowsLevel = int.Parse(szValueInactive.ToString());
+                sdrWindowsLevel = int.Parse(szValueSDR.ToString());
                 affectPrimaryMonitorOnly = bool.Parse(szValueAffectPrimaryMonitorOnly.ToString());
                 neverSwitchResolution = bool.Parse(szValueNeverSwitchResolution.ToString());
             }
             catch (Exception)
             {
                 vibranceWindowsLevel = defaultLevel;
+                sdrWindowsLevel = defaultSDR;
                 affectPrimaryMonitorOnly = false;
                 applicationSettings = new List<ApplicationSetting>();
                 neverSwitchResolution = false;
@@ -169,6 +183,9 @@ namespace vibrance.GUI.common
 
             if (vibranceWindowsLevel < defaultLevel || vibranceWindowsLevel > maxLevel)
                 vibranceWindowsLevel = defaultLevel;
+
+            if (sdrWindowsLevel < defaultSDR || sdrWindowsLevel > 100)
+                sdrWindowsLevel = defaultSDR;
 
             try
             {

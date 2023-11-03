@@ -16,8 +16,11 @@ namespace vibrance.GUI.common
     public partial class VibranceGUI : Form
     {
         private readonly int _defaultWindowsLevel;
+        private readonly int _defaultWindowsSDR;
         private readonly int _minTrackBarValue;
         private readonly int _maxTrackBarValue;
+        private readonly int _minTrackBarSDRValue;
+        private readonly int _maxTrackBarSDRValue;
         private readonly int _defaultIngameValue;
         private readonly Func<int, string> _resolveLabelLevel;
         private readonly IVibranceProxy _v;
@@ -33,15 +36,21 @@ namespace vibrance.GUI.common
 
         public VibranceGUI(
             Func<List<ApplicationSetting>, Dictionary<string, Tuple<ResolutionModeWrapper, List<ResolutionModeWrapper>>>, IVibranceProxy> getProxy, 
-            int defaultWindowsLevel, 
+            int defaultWindowsLevel,
+            int defaultWindowsSDR,
             int minTrackBarValue,
             int maxTrackBarValue,
+            int minTrackBarSDRValue,
+            int maxTrackBarSDRValue,
             int defaultIngameValue,
             Func<int, string> resolveLabelLevel)
         {
             _defaultWindowsLevel = defaultWindowsLevel;
+            _defaultWindowsSDR = defaultWindowsSDR;
             _minTrackBarValue = minTrackBarValue;
             _maxTrackBarValue = maxTrackBarValue;
+            _minTrackBarSDRValue = minTrackBarSDRValue;
+            _maxTrackBarSDRValue = maxTrackBarSDRValue;
             _defaultIngameValue = defaultIngameValue;
             _resolveLabelLevel = resolveLabelLevel;
             _allowVisible = true;
@@ -50,6 +59,8 @@ namespace vibrance.GUI.common
 
             trackBarWindowsLevel.Minimum = minTrackBarValue;
             trackBarWindowsLevel.Maximum = maxTrackBarValue;
+            trackBarWindowsSDR.Minimum = minTrackBarSDRValue;
+            trackBarWindowsSDR.Maximum = maxTrackBarSDRValue;
 
             _windowsResolutionSettings = new Dictionary<string, Tuple<ResolutionModeWrapper, List<ResolutionModeWrapper>>>();
             foreach(Screen screen in Screen.AllScreens)
@@ -116,6 +127,7 @@ namespace vibrance.GUI.common
         private void backgroundWorker_DoWork(object sender, DoWorkEventArgs e)
         {
             int vibranceWindowsLevel = _defaultWindowsLevel;
+            int sdrWindowsLevel = _defaultWindowsSDR;
             bool affectPrimaryMonitorOnly = false;
             bool neverSwitchResolution = false;
 
@@ -128,12 +140,12 @@ namespace vibrance.GUI.common
             {
                 this.Invoke((MethodInvoker)delegate
                 {
-                    ReadVibranceSettings(out vibranceWindowsLevel, out affectPrimaryMonitorOnly, out neverSwitchResolution);
+                    ReadVibranceSettings(out vibranceWindowsLevel, out sdrWindowsLevel, out affectPrimaryMonitorOnly, out neverSwitchResolution);
                 });
             }
             else
             {
-                ReadVibranceSettings(out vibranceWindowsLevel, out affectPrimaryMonitorOnly, out neverSwitchResolution);
+                ReadVibranceSettings(out vibranceWindowsLevel, out sdrWindowsLevel, out affectPrimaryMonitorOnly, out neverSwitchResolution);
             }
 
             if (_v.GetVibranceInfo().isInitialized)
@@ -145,6 +157,7 @@ namespace vibrance.GUI.common
                 _v.SetApplicationSettings(_applicationSettings);
                 _v.SetShouldRun(true);
                 _v.SetVibranceWindowsLevel(vibranceWindowsLevel);
+                _v.SetSDRWindowsLevel(sdrWindowsLevel);
                 _v.SetAffectPrimaryMonitorOnly(affectPrimaryMonitorOnly);
                 _v.SetNeverSwitchResolution(neverSwitchResolution);
             }
@@ -187,15 +200,17 @@ namespace vibrance.GUI.common
         private void ForceSaveVibranceSettings()
         {
             int windowsLevel = 0;
+            int windowsSDR = 40;
             bool affectPrimaryMonitorOnly = false;
             bool neverSwitchResolution = false;
             this.Invoke((MethodInvoker)delegate
             {
                 windowsLevel = trackBarWindowsLevel.Value;
+                windowsSDR = trackBarWindowsSDR.Value;
                 affectPrimaryMonitorOnly = checkBoxPrimaryMonitorOnly.Checked;
                 neverSwitchResolution = checkBoxNeverChangeResolutions.Checked;
             });
-            SaveVibranceSettings(windowsLevel, affectPrimaryMonitorOnly, neverSwitchResolution);
+            SaveVibranceSettings(windowsLevel, windowsSDR, affectPrimaryMonitorOnly, neverSwitchResolution);
         }
 
         private void backgroundWorker_ProgressChanged(object sender, ProgressChangedEventArgs e)
@@ -303,6 +318,7 @@ namespace vibrance.GUI.common
             this.Invoke((MethodInvoker)delegate
             {
                 this.trackBarWindowsLevel.Enabled = flag;
+                this.trackBarWindowsSDR.Enabled = flag;
                 this.checkBoxAutostart.Enabled = flag;
                 this.checkBoxPrimaryMonitorOnly.Enabled = flag;
                 this.buttonAddProgram.Enabled = flag;
@@ -360,20 +376,22 @@ namespace vibrance.GUI.common
             }
         }
 
-        private void ReadVibranceSettings(out int vibranceWindowsLevel, out bool affectPrimaryMonitorOnly, out bool neverSwitchResolution)
+        private void ReadVibranceSettings(out int vibranceWindowsLevel, out int sdrWindowsLevel, out bool affectPrimaryMonitorOnly, out bool neverSwitchResolution)
         {
             _registryController = new RegistryController();
             this.checkBoxAutostart.Checked = _registryController.IsProgramRegistered(AppName);
 
             SettingsController settingsController = new SettingsController();
-            settingsController.ReadVibranceSettings(_v.GraphicsAdapter, out vibranceWindowsLevel, out affectPrimaryMonitorOnly, out neverSwitchResolution, out _applicationSettings);
+            settingsController.ReadVibranceSettings(_v.GraphicsAdapter, out vibranceWindowsLevel, out sdrWindowsLevel, out affectPrimaryMonitorOnly, out neverSwitchResolution, out _applicationSettings);
 
             if (this.IsHandleCreated)
             {
                 //no null check needed, SettingsController will always return matching values.
                 labelWindowsLevel.Text = _resolveLabelLevel(vibranceWindowsLevel);
+                labelWindowsSDR.Text = sdrWindowsLevel.ToString() + " %";
 
                 trackBarWindowsLevel.Value = vibranceWindowsLevel;
+                trackBarWindowsSDR.Value = sdrWindowsLevel;
                 checkBoxPrimaryMonitorOnly.Checked = affectPrimaryMonitorOnly;
                 checkBoxNeverChangeResolutions.Checked = neverSwitchResolution;
                 foreach (ApplicationSetting application in _applicationSettings.ToList())
@@ -399,12 +417,13 @@ namespace vibrance.GUI.common
             }
         }
 
-        private void SaveVibranceSettings(int windowsLevel, bool affectPrimaryMonitorOnly, bool neverSwitchResolution)
+        private void SaveVibranceSettings(int windowsLevel, int windowsSDR, bool affectPrimaryMonitorOnly, bool neverSwitchResolution)
         {
             SettingsController settingsController = new SettingsController();
 
             settingsController.SetVibranceSettings(
                 windowsLevel.ToString(),
+                windowsSDR.ToString(),
                 affectPrimaryMonitorOnly.ToString(),
                 neverSwitchResolution.ToString(),
                 _applicationSettings
@@ -552,6 +571,16 @@ namespace vibrance.GUI.common
         {
             ProcessExplorer ex = new ProcessExplorer(this);
             ex.Show();
+        }
+
+        private void trackBarWindowsSDR_Scroll(object sender, EventArgs e)
+        {
+            _v.SetSDRWindowsLevel(trackBarWindowsSDR.Value);
+            labelWindowsSDR.Text = trackBarWindowsSDR.Value.ToString() + " %";
+            if (!settingsBackgroundWorker.IsBusy)
+            {
+                settingsBackgroundWorker.RunWorkerAsync();
+            }
         }
     }
 }

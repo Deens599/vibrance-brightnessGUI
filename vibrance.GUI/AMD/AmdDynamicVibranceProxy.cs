@@ -20,6 +20,20 @@ namespace vibrance.GUI.AMD
         private WinEventHook _hook;
         private static Screen _gameScreen;
 
+        [DllImport("user32.dll")]
+        static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
+        [DllImport("kernel32", CharSet = CharSet.Unicode)]
+        static extern IntPtr LoadLibrary(string lpFileName);
+        [DllImport("kernel32", CharSet = CharSet.Ansi, ExactSpelling = true, SetLastError = true)]
+        static extern IntPtr GetProcAddress(IntPtr hModule, int address);
+
+        private delegate void DwmpSDRToHDRBoostPtr(IntPtr monitor, double brightness);
+        private static double Normalize(double value, double min, double max)
+        {
+            // Assuming the values are from 0 to 100
+            return (((value - 0) / (100 - 0)) * (max - min)) + min;
+        }
+
         public AmdDynamicVibranceProxy(IAmdAdapter amdAdapter, List<ApplicationSetting> applicationSettings, Dictionary<string, Tuple<ResolutionModeWrapper, List<ResolutionModeWrapper>>> windowsResolutionSettings)
         {
             _amdAdapter = amdAdapter;
@@ -78,6 +92,15 @@ namespace vibrance.GUI.AMD
         {
             _vibranceInfo.userVibranceSettingActive = vibranceIngameLevel;
         }
+        public void SetSDRWindowsLevel(int sdrWindowsLevel)
+        {
+            _vibranceInfo.userSDRSettingDefault = sdrWindowsLevel;
+        }
+
+        public void SetSDRIngameLevel(int sdrIngameLevel)
+        {
+            _vibranceInfo.userSDRSettingActive = sdrIngameLevel;
+        }
 
         public bool UnloadLibraryEx()
         {
@@ -87,7 +110,11 @@ namespace vibrance.GUI.AMD
 
         public void HandleDvcExit()
         {
+            var primaryMonitor = MonitorFromWindow(IntPtr.Zero, 1);
+            var hmodule_dwmapi = LoadLibrary("dwmapi.dll");
+            DwmpSDRToHDRBoostPtr changeBrightness = Marshal.GetDelegateForFunctionPointer<DwmpSDRToHDRBoostPtr>(GetProcAddress(hmodule_dwmapi, 171));
             _amdAdapter.SetSaturationOnAllDisplays(_vibranceInfo.userVibranceSettingDefault);
+            changeBrightness(primaryMonitor, Normalize(_vibranceInfo.userVibranceSettingDefault, 1.0, 6.0));
         }
 
         public void SetAffectPrimaryMonitorOnly(bool affectPrimaryMonitorOnly)
@@ -109,6 +136,9 @@ namespace vibrance.GUI.AMD
         {
             if (_applicationSettings.Count > 0)
             {
+                var primaryMonitor = MonitorFromWindow(IntPtr.Zero, 1);
+                var hmodule_dwmapi = LoadLibrary("dwmapi.dll");
+                DwmpSDRToHDRBoostPtr changeBrightness = Marshal.GetDelegateForFunctionPointer<DwmpSDRToHDRBoostPtr>(GetProcAddress(hmodule_dwmapi, 171));
                 ApplicationSetting applicationSetting = _applicationSettings.FirstOrDefault(x => string.Equals(x.Name, e.ProcessName, StringComparison.OrdinalIgnoreCase));
                 if (applicationSetting != null)
                 {
@@ -125,13 +155,16 @@ namespace vibrance.GUI.AMD
                     }
 
                     _amdAdapter.SetSaturationOnAllDisplays(_vibranceInfo.userVibranceSettingDefault);
+                    changeBrightness(primaryMonitor, Normalize(_vibranceInfo.userVibranceSettingDefault, 1.0, 6.0));
                     if (_vibranceInfo.affectPrimaryMonitorOnly)
                     {
                         _amdAdapter.SetSaturationOnDisplay(applicationSetting.IngameLevel, screen.DeviceName);
+                        changeBrightness(primaryMonitor, Normalize(applicationSetting.IngameLevel, 1.0, 6.0));
                     }
                     else
                     {
                         _amdAdapter.SetSaturationOnAllDisplays(applicationSetting.IngameLevel);
+                        changeBrightness(primaryMonitor, Normalize(applicationSetting.IngameLevel, 1.0, 6.0));
                     }
                 }
                 else
@@ -151,6 +184,7 @@ namespace vibrance.GUI.AMD
                     }
 
                     _amdAdapter.SetSaturationOnAllDisplays(_vibranceInfo.userVibranceSettingDefault);
+                    changeBrightness(primaryMonitor, Normalize(_vibranceInfo.userVibranceSettingDefault, 1.0, 6.0));
                 }
             }
         }

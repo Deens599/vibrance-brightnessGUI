@@ -28,10 +28,12 @@ namespace vibrance.GUI.common
             {
                 // Sets the progress bar value to the Ingame Vibrance setting
                 this.trackBarIngameLevel.Value = setting.IngameLevel;
+                this.trackBarInGameSDR.Value = setting.IngameSDR;
                 this.cBoxResolution.SelectedItem = setting.ResolutionSettings;
                 this.checkBoxResolution.Checked = setting.IsResolutionChangeNeeded;
                 // Necessary to reload the label which tells the percentage
-                trackBarIngameLevel_Scroll(null, null); 
+                trackBarIngameLevel_Scroll(null, null);
+                trackBarInGameSDR_Scroll(null, null);
             }
         }
 
@@ -49,13 +51,19 @@ namespace vibrance.GUI.common
 
         public ApplicationSetting GetApplicationSetting()
         {
-            return new ApplicationSetting(_sender.Text, _sender.Tag.ToString(), this.trackBarIngameLevel.Value, 
+            return new ApplicationSetting(_sender.Text, _sender.Tag.ToString(), this.trackBarIngameLevel.Value, this.trackBarInGameSDR.Value,
                 (ResolutionModeWrapper)this.cBoxResolution.SelectedItem, this.checkBoxResolution.Checked);
         }
 
         private void checkBoxResolution_CheckedChanged(object sender, EventArgs e)
         {
             this.cBoxResolution.Enabled = this.checkBoxResolution.Checked;
+        }
+
+        private void trackBarInGameSDR_Scroll(object sender, EventArgs e)
+        {
+            _v.SetSDRIngameLevel(trackBarInGameSDR.Value);
+            labelInGameSDR.Text = trackBarInGameSDR.Value.ToString() + " %";
         }
     }
 }
